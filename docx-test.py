@@ -9,10 +9,14 @@ Created on Tue Nov  7 05:48:32 2017
 from docx import Document
 from docx.shared import Pt
 from docx.shared import Inches
+from docx.shared import RGBColor
 from docx.oxml.ns import qn
+
+import os
+
 document = Document()
 #add heading
-document.add_heading(u'Test',0)
+document.add_heading(u'Test',level=0)
 document.add_heading(u'1.what?',1)
 document.add_heading(u'2.why?',2)
 document.add_heading(u'3.when?',3)
@@ -33,6 +37,12 @@ run.font.name = 'Consolas'
 #set chinese font
 run = paragraph.add_run(u'设置中文字体')
 run.font.name = u'宋体'
+run.font.size = 12
+run.font.underline = True
+run.font.bold = True
+run.font.italic = True
+#run.font.underline = WD_UNDERLINE.DOT_DASH
+run.font.color.rgb =  RGBColor(0x42,0x24,0xE9)
 r = run._element
 r.rPr.rFonts.set(qn('w:eastAsia'),u'宋体')
 #set italic
@@ -47,7 +57,7 @@ document.add_paragraph('Intense quote',style='Intense Quote')
 document.add_paragraph(u'non-ordered',style='List Bullet')
 document.add_paragraph(u'ordered',style='List Number')
 #add picture
-#document.add_picture('image.bmp',width=Inches(1.25))
+document.add_picture(os.path.join(os.getcwd(),'book.jpg'),width=Inches(1.25))
 #insert table
 table = document.add_table(rows=1,cols=3)
 hdr_cells = table.rows[0].cells
