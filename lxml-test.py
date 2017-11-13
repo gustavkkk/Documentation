@@ -6,6 +6,8 @@ Created on Sat Nov 11 10:14:32 2017
 
 ref:http://virantha.com/2013/08/16/reading-and-writing-microsoft-word-docx-files-with-python/
     https://stackoverflow.com/questions/19483775/python-zipfile-extract-doesnt-extract-all-files
+    https://stackoverflow.com/questions/36193159/page-number-python-docx
+    http://effbot.org/zone/element.htm
 """
 
 from zipfile import ZipFile
@@ -44,12 +46,15 @@ def _join_tags(my_etree):
         # Scan through every node with text
         for i,c in enumerate(text):
             # Go through each node's text character by character
+            print(c)
             if c == '[':
                 openbrac = True # Within a tag
                 inside_openbrac_node = True # Tag was opened in this node
                 openbrac_node = node # Save ptr to open bracket containing node
                 chars = []
+                print("openingbracket")
             elif c== ']':
+                print("closingbracket")
                 assert openbrac
                 if inside_openbrac_node:
                     # Open and close inside same node, no need to do anything
@@ -119,15 +124,19 @@ class OpenXML:
 
 import os 
 
-filepath_in = os.path.join(os.getcwd(),'test.docx')
-filepath_in = os.path.join(os.getcwd(),'out.docx')
+curdir = os.getcwd()
+filename = 'test.docx'#'blank.docx'#
+filepath_in = os.path.join(curdir,filename)
+filepath_out = os.path.join(curdir,'out.docx')
 
 def main():
     xml =  get_word_xml(filepath_in)
     xml_tree = get_xml_tree(xml)
+    #printxmltree(xml_tree)
+    _join_tags(xml_tree)
     for node, txt in _itertext(xml_tree):
         print(txt)
-    _write_and_close_docx()    
+    #_write_and_close_docx(filepath_out)
         
 if __name__ == "__main__":
     main()
