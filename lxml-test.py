@@ -21,11 +21,13 @@ def get_word_xml(docx_filename):
 
 from lxml import etree
 
-def get_xml_tree(xml_string):
+def string2xml(xml_string):
    return etree.fromstring(xml_string)
 
-def printxmltree(xmltree):
-    print(etree.tostring(xmltree, pretty_print=True))
+def xml2string(xmltree,filename='xmltree.xml'):
+    string = etree.tostring(xmltree, pretty_print=True)
+    with open(filename,'wb') as f:
+        f.write(string)    
 
 def _itertext(my_etree):
      """Iterator to go through xml tree's text nodes"""
@@ -125,15 +127,16 @@ class OpenXML:
 import os 
 
 curdir = os.getcwd()
-filename = 'test.docx'#'blank.docx'#
+filename = 'simohua-twopage.docx'#'blank.docx'#
 filepath_in = os.path.join(curdir,filename)
 filepath_out = os.path.join(curdir,'out.docx')
 
 def main():
-    xml =  get_word_xml(filepath_in)
-    xml_tree = get_xml_tree(xml)
+    xml_string =  get_word_xml(filepath_in)
+    xml_tree = string2xml(xml_string)
+    xml2string(xml_tree)
     #printxmltree(xml_tree)
-    _join_tags(xml_tree)
+    #_join_tags(xml_tree)
     for node, txt in _itertext(xml_tree):
         print(txt)
     #_write_and_close_docx(filepath_out)
