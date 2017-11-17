@@ -12,134 +12,197 @@ ref:http://virantha.com/2013/08/16/reading-and-writing-microsoft-word-docx-files
 
 from zipfile import ZipFile
 #from gzip import GzipFile
-
-def get_word_xml(docx_filename):
-   with open(docx_filename,'r+b') as f:
-      zip = ZipFile(f)
-      xml_content = zip.read('word/document.xml')
-   return xml_content
-
 from lxml import etree
+import jieba
+from config import dic,keywords
 
-def string2xml(xml_string):
-   return etree.fromstring(xml_string)
-
-def xml2string(xmltree,filename='xmltree.xml'):
-    string = etree.tostring(xmltree, pretty_print=True)
-    with open(filename,'wb') as f:
-        f.write(string)    
-
-def _itertext(my_etree):
-     """Iterator to go through xml tree's text nodes"""
-     for node in my_etree.iter(tag=etree.Element):
-         if _check_element_is(node, 't'):
-             yield (node, node.text)
-
-def _check_element_is(element, type_char):
+for word in dic:
+    jieba.add_word(word)
+             
+def check_element_is(element, type_char):
      word_schema = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
      return element.tag == '{%s}%s' % (word_schema,type_char)
 
-def _join_tags(my_etree):
-    chars = []
-    openbrac = False
-    inside_openbrac_node = False
-
-    for node,text in _itertext(my_etree):
-        # Scan through every node with text
-        for i,c in enumerate(text):
-            # Go through each node's text character by character
-            print(c)
-            if c == '[':
-                openbrac = True # Within a tag
-                inside_openbrac_node = True # Tag was opened in this node
-                openbrac_node = node # Save ptr to open bracket containing node
-                chars = []
-                print("openingbracket")
-            elif c== ']':
-                print("closingbracket")
-                assert openbrac
-                if inside_openbrac_node:
-                    # Open and close inside same node, no need to do anything
-                    pass
-                else:
-                    # Open bracket in earlier node, now it's closed
-                    # So append all the chars we've encountered since the openbrac_node '['
-                    # to the openbrac_node
-                    chars.append(']')
-                    openbrac_node.text += ''.join(chars)
-                    # Also, don't forget to remove the characters seen so far from current node
-                    node.text = text[i+1:]
-                openbrac = False
-                inside_openbrac_node = False
-            else:
-                # Normal text character
-                if openbrac and inside_openbrac_node:
-                    # No need to copy text
-                    pass
-                elif openbrac and not inside_openbrac_node:
-                    chars.append(c)
-                else:
-                    # outside of a open/close
-                    pass
-        if openbrac and not inside_openbrac_node:
-            # Went through all text that is part of an open bracket/close bracket
-            # in other nodes
-            # need to remove this text completely
-            node.text = ""
-        inside_openbrac_node = False
- 
-def unzip(source_filename, dest_dir):
-    with ZipFile(source_filename) as zf:
+def get_text(element):
+    string=''
+    for node in element.iter(tag=etree.Element):
+        if check_element_is(node, 't'):
+            string += node.text
+    return ''.join(string.split())
+            
+def unzip(zipfilename, dest_dir):
+    with ZipFile(zipfilename) as zf:
         zf.extractall(dest_dir)
-        
+       
 import tempfile,shutil
 
-def _write_and_close_docx (xml_content, output_filename):
-    """ Create a temp directory, expand the original docx zip.
-        Write the modified xml to word/document.xml
-        Zip it up as the new docx
-    """
+word_schema = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+para_tag = '{%s}%s' % (word_schema,'p')
+table_tag = '{%s}%s' % (word_schema,'tbl')
+text_tag = '{%s}%s' % (word_schema,'t')
 
-    tmp_dir = tempfile.mkdtemp()
-
-    ZipFile.extractall(tmp_dir)
-
-    with open(os.path.join(tmp_dir,'word/document.xml'), 'w') as f:
-        xmlstr = etree.tostring (xml_content, pretty_print=True)
-        f.write(xmlstr)
-
-    # Get a list of all the files in the original docx zipfile
-    filenames = ZipFile.namelist()
-    # Now, create the new zip file and add all the filex into the archive
-    zip_copy_filename = output_filename
-    with ZipFile(zip_copy_filename, "w") as docx:
-        for filename in filenames:
-            docx.write(os.path.join(tmp_dir,filename), filename)
-
-    # Clean up the temp dir
-    shutil.rmtree(tmp_dir)
-
-    
 class OpenXML:
+    
     def __init__(self):
-        pass
+        self.file, self.zipfile, self.xml_content, self.xml_tree = None,None,None,None
 
+    def close(self):
+        self.file.close()
+
+    def fill_in(self):
+        self.fill_in_paragraph()
+        self.fill_in_table()
+        
+    def fill_in_paragraph(self):
+        for child in self.body:
+            if check_element_is(child,'p'):
+                text = get_text(child)
+                if text == "":
+                    continue
+                print(text)
+                
+    def fill_in_table(self):
+        pass
+    
+    def find_cover_page_by_index(self):
+        # find the position of coverpage
+        # in’投标文件格式‘
+        # out:‘第九章’
+        index = -1
+        for child in self.body:
+            # only paragraph
+            if check_element_is(child,'p'):
+                text = get_text(child)
+                if text == "":
+                    continue
+                seglist = jieba.cut(text, cut_all=False)
+                seglist = list(seglist)
+                # only with keyword "投标文件格式"
+                if keywords[1] in seglist:
+                    index = seglist.index(keywords[1])
+                    key = seglist[index-1]
+                    position = seglist[index+2]
+                    break
+        if index == -1:
+            return -1
+        # toss
+        avg_paras_per_page = 20
+        estimated_position = int(position) * avg_paras_per_page
+        
+        # find paragraph index of coverpage
+        # in: ‘第九章’，‘投标文件格式’
+        # out: 2320(self.body[2320] is what)
+        for i,child in enumerate(self.body):
+             if i < estimated_position or not check_element_is(child,'p'):
+                 continue
+             text = get_text(child)
+             if text == "":
+                 continue
+             seglist = jieba.cut(text, cut_all=False)
+             seglist = list(seglist)
+             if key in seglist and keywords[1] in seglist:
+                 if abs(seglist.index(key) - seglist.index(keywords[1])) < 2:
+                     #print(i,seglist)
+                     return i
+             
+        return -1
+                    
+                    
+    def load(self,docx_filename):
+        self.file = open(docx_filename,'r+b')
+        self.zipfile = ZipFile(self.file)
+        self.xml_content = self.zipfile.read('word/document.xml')
+        self.xml_tree = etree.fromstring(self.xml_content)
+        self.reset()
+            
+    @property
+    def paragraphs(self):
+        return self.paras
+    
+    @property
+    def tables(self):
+        return self.tbls
+
+    @staticmethod    
+    def printag(root):
+        for child in root:
+            print(child.tag)
+            for grandchild in child:
+                print(grandchild.tag)
+
+    @staticmethod
+    def printxml(filename,xmlstring):
+        with open(filename,'w+b') as xml:
+            xml.write(xmlstring)
+            
+    def process(self):
+        if self.xml_tree is None:
+           return
+        
+        #self.remove_non_format_pages()
+        #self.fill_in()
+        
+                
+    def remove_non_format_pages(self):
+        #
+        coverpage_index = self.find_cover_page_by_index()
+        for i,child in enumerate(self.body):
+            if i > coverpage_index:
+                break
+            parent = child.getparent()
+            #print(get_text(para))
+            parent.remove(child)
+            child = None
+        #
+        self.reset()
+
+    def reset(self):
+        self.root = self.xml_tree
+        self.body = self.root[0]
+        self.paras = []
+        self.tbls = []
+        self.xml_content = etree.tostring(self.xml_tree,pretty_print=True)
+        #self.paras = self.body.iter('{%s}%s' % (word_schema,'p'))
+        #self.tables = self.body.iter('{%s}%s' % (word_schema,'tbl'))
+        for child in self.body:
+            if check_element_is(child,'p'):
+                self.paras.append(child)
+            elif check_element_is(child,'tbl'):   
+                self.tbls.append(child)
+        
+    def save(self,output_filename):
+        #in:xml_tree
+        #out:.docx
+        tmp_dir = tempfile.mkdtemp()
+        self.zipfile.extractall(tmp_dir)
+        with open(os.path.join(tmp_dir,'word/document.xml'), 'w+b') as f:
+            xmlstr = etree.tostring(self.xml_tree, pretty_print=True)
+            f.write(xmlstr)
+        # Get a list of all the files in the original docx zipfile
+        filenames = self.zipfile.namelist()
+        # Now, create the new zip file and add all the filex into the archive
+        zip_copy_filename = output_filename
+        with ZipFile(zip_copy_filename, "w") as docx_:
+            for filename in filenames:
+                docx_.write(os.path.join(tmp_dir,filename), filename)    
+        # Clean up the temp dir
+        shutil.rmtree(tmp_dir)
+        #
+        self.close()
+        
 import os 
 
 curdir = os.getcwd()
-filename = 'simohua-twopage.docx'#'blank.docx'#
+filename = 'simohua.docx'#'blank.docx'#
 filepath_in = os.path.join(curdir,filename)
 filepath_out = os.path.join(curdir,'out.docx')
 
 def main():
-    xml_string =  get_word_xml(filepath_in)
-    xml_tree = string2xml(xml_string)
-    xml2string(xml_tree)
-    #printxmltree(xml_tree)
-    #_join_tags(xml_tree)
-    for node, txt in _itertext(xml_tree):
-        print(txt)
-    #_write_and_close_docx(filepath_out)
+    oxml = OpenXML();
+    oxml.load(filepath_in)
+    OpenXML.printxml(,oxml.xml_content)
+    #oxml.process()
+    #oxml.save(filepath_out)
         
 if __name__ == "__main__":
     main()

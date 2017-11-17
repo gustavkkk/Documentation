@@ -20,53 +20,11 @@ ref:https://python-docx.readthedocs.io/en/latest/#api-documentation
 
 import docx
 import re
-import jieba
+import jieba  
+from config import dic
 
-dic1 = ['投标文件格式',
-       '盖单位章',
-       '投标文件',
-       '评审因素索引表',
-       '标段名称',
-       '招标文件',
-       '投标总报价',
-       '项目负责人',
-       '技术负责人',
-       '投标人名称',
-       '招标人名称',
-       '授权委托书',
-       '身份证号码',
-       '委托代理人',
-       '法定代表人',
-       '法定代表人身份证复印件',
-       '代理人身份证复印件',
-       '异议函'
-       ]
-
-dic2 = ['投标文件格式',
-        '投标函',
-        '投标函附录',
-        '承诺书',
-        '法定代表人身份证明',
-        '授权委托书',
-        '联合体协议书',
-        '投标保证金',
-        '已标价工程量清单',
-        '施工组织设计',
-        '项目管理机构表',
-        '拟分包项目情况表',
-        '资格审查资料',
-        '原件的复印件',
-        '其他材料',
-        '资格审查原件登记表',
-        '符合性审查表'
-        ]    
-
-for word in dic1:
+for word in dic:
     jieba.add_word(word)
-    
-for word in dic2:
-    jieba.add_word(word)
-
 
 def isChinese(text):
     ischinese = False
